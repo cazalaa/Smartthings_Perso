@@ -58,7 +58,7 @@
  import physicalgraph.zigbee.zcl.DataType
 
 metadata {
-	definition (name: "Xiaomi Aqara Button", namespace: "bspranger", author: "bspranger", minHubCoreVersion: "000.022.0002", ocfDeviceType: "x.com.st.d.remotecontroller") {
+	definition (name: "Xiaomi Aqara Button", namespace: "jcc", author: "bspranger", minHubCoreVersion: "000.022.0002", ocfDeviceType: "x.com.st.d.remotecontroller") {
 		capability "Actuator"
 		capability "Battery"
 		capability "Button"
