@@ -23,7 +23,7 @@
  */
 
 metadata {
-	definition (name: "Xiaomi Aqara Temperature Humidity Sensor", namespace: "bspranger", author: "bspranger") {
+	definition (name: "My Temperature Humidity Sensor", namespace: "jcc", author: "jcc") {
 	capability "Temperature Measurement"
 	capability "Relative Humidity Measurement"
 	capability "Sensor"
