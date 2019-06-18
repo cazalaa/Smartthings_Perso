@@ -1,6 +1,6 @@
 /**
- *  My EFR32 Temperature Sensor
- *  Version 1.0
+ *  Xiaomi Aqara Temperature Humidity Sensor
+ *  Version 1.3
  *
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,30 +16,44 @@
  *  Additional contributions to code by alecm, alixjg, bspranger, cscheiene, gn0st1c, foz333, jmagnuson, rinkek, ronvandegraaf, snalee, tmleafs, twonk, & veeceeoh 
  * 
  *  Known issues:
- *  
+ *  Xiaomi sensors do not seem to respond to refresh requests
+ *  Inconsistent rendering of user interface text/graphics between iOS and Android devices - This is due to SmartThings, not this device handler
+ *  Pairing Xiaomi sensors can be difficult as they were not designed to use with a SmartThings hub. See 
  *
  */
 
 metadata {
-	definition (name: "My Temperature Sensor", namespace: "jcc", author: "jcc") {
+	definition (name: "Xiaomi Aqara Temperature Humidity Sensor", namespace: "bspranger", author: "bspranger") {
 	capability "Temperature Measurement"
+	capability "Relative Humidity Measurement"
 	capability "Sensor"
+	capability "Battery"
+	capability "Health Check"
 
 	attribute "lastCheckin", "String"
 	attribute "lastCheckinDate", "String"
 	attribute "maxTemp", "number"
 	attribute "minTemp", "number"
+	attribute "maxHumidity", "number"
+	attribute "minHumidity", "number"
 	attribute "multiAttributesReport", "String"
 	attribute "currentDay", "String"
+	attribute "batteryRuntime", "String"
 
+	//fingerprint profileId: "0104", deviceId: "5F01", inClusters: "0000, 0003, FFFF, 0402, 0403, 0405", outClusters: "0000, 0004, FFFF", manufacturer: "LUMI", model: "lumi.weather", deviceJoinName: "Xiaomi Aqara Temp Sensor"
 	fingerprint profileId: "C00F", deviceId: "0302", inClusters: "0000, 0003, FFFF, 0402", outClusters: "0000, FFFF", manufacturer: "Ember", model: "Ember.weather", deviceJoinName: "My Temp Sensor"
 
+	command "resetBatteryRuntime"
 	}
 
     // simulator metadata
     simulator {
         for (int i = 0; i <= 100; i += 10) {
             status "${i}F": "temperature: $i F"
+        }
+
+        for (int i = 0; i <= 100; i += 10) {
+            status "${i}%": "humidity: ${i}%"
         }
     }
 
@@ -75,15 +89,41 @@ metadata {
  		    [value: 96, color: "#bc2323"]
                 ]
         }
+        valueTile("humidity", "device.humidity", inactiveLabel: false, width: 2, height: 2) {
+            state "humidity", label:'${currentValue}%', unit:"%", icon:"https://raw.githubusercontent.com/bspranger/Xiaomi/master/images/XiaomiHumidity.png",
+            backgroundColors:[
+                [value: 0, color: "#FFFCDF"],
+                [value: 4, color: "#FDF789"],
+                [value: 20, color: "#A5CF63"],
+                [value: 23, color: "#6FBD7F"],
+                [value: 56, color: "#4CA98C"],
+                [value: 59, color: "#0072BB"],
+                [value: 76, color: "#085396"]
+            ]
+        }
+        standardTile("pressure", "device.pressure", inactiveLabel: false, decoration:"flat", width: 2, height: 2) {
+            state "pressure", label:'${currentValue}', icon:"https://raw.githubusercontent.com/bspranger/Xiaomi/master/images/XiaomiPressure.png"
+        }
+        valueTile("battery", "device.battery", inactiveLabel: false, width: 2, height: 2) {
+            state "battery", label:'${currentValue}%', unit:"%", icon:"https://raw.githubusercontent.com/bspranger/Xiaomi/master/images/XiaomiBattery.png",
+            backgroundColors:[
+                [value: 10, color: "#bc2323"],
+                [value: 26, color: "#f1d801"],
+                [value: 51, color: "#44b621"]
+            ]
+        }
         valueTile("spacer", "spacer", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
 	    state "default", label:''
         }
         valueTile("lastcheckin", "device.lastCheckin", inactiveLabel: false, decoration:"flat", width: 4, height: 1) {
             state "lastcheckin", label:'Last Event:\n ${currentValue}'
         }
+        valueTile("batteryRuntime", "device.batteryRuntime", inactiveLabel: false, decoration:"flat", width: 4, height: 1) {
+            state "batteryRuntime", label:'Battery Changed: ${currentValue}'
+        }
 
-	main("temperature2")
-        details(["temperature", "spacer", "lastcheckin", "spacer", "spacer"])
+        main("temperature2")
+        details(["temperature", "battery", "pressure", "humidity", "spacer", "lastcheckin", "spacer", "spacer", "batteryRuntime", "spacer"])
     }
 	preferences {
 		//Button Config
@@ -94,11 +134,21 @@ metadata {
 		//Temp, Humidity, and Pressure Offsets and Pressure Units
 		input description: "The settings below allow correction of variations in temperature, humidity, and pressure by setting an offset. Examples: If the sensor consistently reports temperature 5 degrees too warm, enter '-5' for the Temperature Offset. If it reports humidity 3% too low, enter ‘3' for the Humidity Offset. NOTE: Changes will take effect on the NEXT temperature / humidity / pressure report.", type: "paragraph", element: "paragraph", title: "OFFSETS & UNITS"
 		input "tempOffset", "decimal", title:"Temperature Offset", description:"Adjust temperature by this many degrees", range:"*..*"
+		input "humidOffset", "number", title:"Humidity Offset", description:"Adjust humidity by this many percent", range: "*..*"
+		input "pressOffset", "number", title:"Pressure Offset", description:"Adjust pressure by this many units", range: "*..*"
+		input name:"PressureUnits", type:"enum", title:"Pressure Units", options:["mbar", "kPa", "inHg", "mmHg"], description:"Sets the unit in which pressure will be reported"
 		input description: "NOTE: The temperature unit (C / F) can be changed in the location settings for your hub.", type: "paragraph", element: "paragraph", title: ""
 		//Date & Time Config
 		input description: "", type: "paragraph", element: "paragraph", title: "DATE & CLOCK"    
 		input name: "dateformat", type: "enum", title: "Set Date Format\nUS (MDY) - UK (DMY) - Other (YMD)", description: "Date Format", options:["US","UK","Other"]
 		input name: "clockformat", type: "bool", title: "Use 24 hour clock?"
+		//Battery Reset Config
+		input description: "If you have installed a new battery, the toggle below will reset the Changed Battery date to help remember when it was changed.", type: "paragraph", element: "paragraph", title: "CHANGED BATTERY DATE RESET"
+		input name: "battReset", type: "bool", title: "Battery Changed?", description: ""
+		//Battery Voltage Offset
+		input description: "Only change the settings below if you know what you're doing.", type: "paragraph", element: "paragraph", title: "ADVANCED SETTINGS"
+		input name: "voltsmax", title: "Max Volts\nA battery is at 100% at __ volts.\nRange 2.8 to 3.4", type: "decimal", range: "2.8..3.4", defaultValue: 3
+		input name: "voltsmin", title: "Min Volts\nA battery is at 0% (needs replacing)\nat __ volts.  Range 2.0 to 2.7", type: "decimal", range: "2..2.7", defaultValue: 2.5
 	}
 }
 
@@ -128,6 +178,9 @@ def parse(String description) {
 		map.descriptionText = "${device.displayName} temperature is ${map.value}°${temperatureScale}"
 		map.translatable = true
 		updateMinMaxTemps(map.value)
+	} else if (map.name == "humidity") {
+		map.value = humidOffset ? (int) map.value + (int) humidOffset : (int) map.value
+		updateMinMaxHumidity(map.value)
 	} else if (description?.startsWith('catchall:')) {
 		map = parseCatchAllMessage(description)
 	} else if (description?.startsWith('read attr - raw:')) {
